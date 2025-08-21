@@ -2,6 +2,7 @@
 using ResoniteModLoader;
 using FrooxEngine;
 using System;
+using Renderite.Shared;
 using System.Collections.Generic;
 using Elements.Core;
 using FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes.Operators;
@@ -17,7 +18,7 @@ namespace RainbowLasers
         public override String Name => "RainbowLasers";
         public override String Author => "zahndy";
         public override String Link => "https://github.com/zahndy/RainbowLasers";
-        public override String Version => "1.0.0";
+        public override String Version => "1.1.0";
  
         public static ModConfiguration config;
 
@@ -81,7 +82,7 @@ namespace RainbowLasers
                     ____directPoint.ForceLink(Mesh.DirectTargetPoint);
                     ____actualPoint.ForceLink(Mesh.ActualTargetPoint);
 
-                    bool IsRight = __instance.Side == Chirality.Right;
+                    bool IsRight = __instance.Side == Renderite.Shared.Chirality.Right;
 
                     Mesh.StartPointColor.Value = new colorX(.25f, 1f, 1f, 1f);
                     Mesh.EndPointColor.Value = new colorX(.25f, 1f, 1f, 1f);
