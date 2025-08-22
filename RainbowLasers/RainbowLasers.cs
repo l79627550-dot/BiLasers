@@ -1,10 +1,12 @@
-﻿using HarmonyLib;
-using ResoniteModLoader;
+﻿using Elements.Core;
 using FrooxEngine;
-using System;
+using HarmonyLib;
 using Renderite.Shared;
+using ResoniteModLoader;
+using ProtoFluxBindings;
+using ProtoFlux.Core;
+using System;
 using System.Collections.Generic;
-using Elements.Core;
 using FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes.Operators;
 using FrooxEngine.FrooxEngine.ProtoFlux.CoreNodes;
 using FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes.FrooxEngine.Time;
@@ -19,19 +21,19 @@ namespace RainbowLasers
         public override String Author => "zahndy";
         public override String Link => "https://github.com/zahndy/RainbowLasers";
         public override String Version => "1.1.0";
- 
+
         public static ModConfiguration config;
 
         [AutoRegisterConfigKey]
         private static readonly ModConfigurationKey<bool> ENABLED = new ModConfigurationKey<bool>("enabled", "Enabled", () => true);
 
-       // [AutoRegisterConfigKey]
-       // private static ModConfigurationKey<colorX> BASE_COLOR = new ModConfigurationKey<colorX>("BASE_COLOR", "Base color", () => new colorX(.25F, 1F, 1F, 1F));
+        // [AutoRegisterConfigKey]
+        // private static ModConfigurationKey<colorX> BASE_COLOR = new ModConfigurationKey<colorX>("BASE_COLOR", "Base color", () => new colorX(.25F, 1F, 1F, 1F));
 
         [Range(0, 1)]
         [AutoRegisterConfigKey]
         private static readonly ModConfigurationKey<float> OFFSET = new ModConfigurationKey<float>("Offset", "Offset Between start and end of laser", () => 0.3f);
-        
+
         [Range(0, 1)]
         [AutoRegisterConfigKey]
         private static readonly ModConfigurationKey<float> GLOW = new ModConfigurationKey<float>("Glow", "How much you want the laser to glow", () => 0.3f);
@@ -87,7 +89,7 @@ namespace RainbowLasers
                     Mesh.StartPointColor.Value = new colorX(.25f, 1f, 1f, 1f);
                     Mesh.EndPointColor.Value = new colorX(.25f, 1f, 1f, 1f);
 
-                    ValueField<colorX> Start = SetUpLogix(Assets, ColS.Value, Mesh.StartPointColor, true, IsRight); 
+                    ValueField<colorX> Start = SetUpLogix(Assets, ColS.Value, Mesh.StartPointColor, true, IsRight);
                     ValueField<colorX> End = SetUpLogix(Assets, ColE.Value, Mesh.EndPointColor, false, IsRight);
                     // ____startColor / BASE_COLOR * DesiredSource 
 
@@ -110,14 +112,14 @@ namespace RainbowLasers
             InputSource.TrySetRootSource(Input);
 
             ValueField<colorX> Default = driver.AttachComponent<ValueField<colorX>>();       //Static Default Value 
-            float colRemap = 1-(config.GetValue(GLOW) * .99f);
-            colorX BASE_COLOR = new colorX(colRemap,colRemap,colRemap,1f);
-            Default.Value.Value =BASE_COLOR;
+            float colRemap = 1 - (config.GetValue(GLOW) * .99f);
+            colorX BASE_COLOR = new colorX(colRemap, colRemap, colRemap, 1f);
+            Default.Value.Value = BASE_COLOR;
             ValueSource<colorX> DefaultSource = driver.AttachComponent<ValueSource<colorX>>();
-            DefaultSource.TrySetRootSource(Default.Value);                 
+            DefaultSource.TrySetRootSource(Default.Value);
 
             ValueField<colorX> DesiredField = driver.AttachComponent<ValueField<colorX>>(); //target
-            DesiredField.Value.Value = new colorX(1f, 1f, 1f, 1f); 
+            DesiredField.Value.Value = new colorX(1f, 1f, 1f, 1f);
             ValueSource<colorX> DesiredSource = driver.AttachComponent<ValueSource<colorX>>();
             DesiredSource.TrySetRootSource(DesiredField.Value);
 
@@ -160,7 +162,7 @@ namespace RainbowLasers
             hueFieldDrive.Value.TrySet(mid);
             hueFieldDrive.TrySetRootTarget(DesiredField.Value);
 
-            ValueDiv <colorX> Div = driver.AttachComponent<ValueDiv<colorX>>();
+            ValueDiv<colorX> Div = driver.AttachComponent<ValueDiv<colorX>>();
             ValueMul<colorX> Mul = driver.AttachComponent<ValueMul<colorX>>();
 
             Div.A.TrySet(InputSource);
@@ -175,7 +177,7 @@ namespace RainbowLasers
 
             return DesiredField;
         }
-        
+
 
     }
 }
