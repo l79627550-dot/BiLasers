@@ -1,4 +1,4 @@
-﻿using Elements.Core;
+using Elements.Core;
 using FrooxEngine;
 using HarmonyLib;
 using Renderite.Shared;
@@ -6,44 +6,34 @@ using ResoniteModLoader;
 using ProtoFluxBindings;
 using ProtoFlux.Core;
 using System;
-using System.Collections.Generic;
 using FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes.Operators;
 using FrooxEngine.FrooxEngine.ProtoFlux.CoreNodes;
-using FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes.FrooxEngine.Time;
 using FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes.Color;
 
 namespace RainbowLasers
 {
-
     public class Patch : ResoniteMod
     {
-        public override String Name => "RainbowLasers";
-        public override String Author => "zahndy";
-        public override String Link => "https://github.com/zahndy/RainbowLasers";
-        public override String Version => "1.1.0";
+        public override string Name => "BiLasers";
+        public override string Author => "Nexis";
+        public override string Link => "https://github.com/l79627550-dot/BiLasers";
+        public override string Version => "1.0.0";
 
         public static ModConfiguration config;
 
         [AutoRegisterConfigKey]
         private static readonly ModConfigurationKey<bool> ENABLED = new ModConfigurationKey<bool>("enabled", "Enabled", () => true);
 
-        // [AutoRegisterConfigKey]
-        // private static ModConfigurationKey<colorX> BASE_COLOR = new ModConfigurationKey<colorX>("BASE_COLOR", "Base color", () => new colorX(.25F, 1F, 1F, 1F));
-
-        [Range(0, 1)]
         [AutoRegisterConfigKey]
-        private static readonly ModConfigurationKey<float> OFFSET = new ModConfigurationKey<float>("Offset", "Offset Between start and end of laser", () => 0.3f);
+        private static readonly ModConfigurationKey<float> SMOOTH = new ModConfigurationKey<float>("Smoothing Value", "How fast do you want the laser to change color?", () => 10f);
 
-        [Range(0, 1)]
         [AutoRegisterConfigKey]
-        private static readonly ModConfigurationKey<float> GLOW = new ModConfigurationKey<float>("Glow", "How much you want the laser to glow", () => 0.3f);
+        private static readonly ModConfigurationKey<colorX> START = new ModConfigurationKey<colorX>("Start Color", "Start Color:", () => new colorX(0.84f, 0.01f, 0.44f, 1f));
 
-        [Range(0, 10)]
         [AutoRegisterConfigKey]
-        private static readonly ModConfigurationKey<float> SPEED = new ModConfigurationKey<float>("Speed", "How fast should the rainbow move", () => 1.0f);
+        private static readonly ModConfigurationKey<colorX> END = new ModConfigurationKey<colorX>("End Color", "End Color", () => new colorX(0f, 0.22f, 0.66f, 1f));
 
         public override void OnEngineInit()
-
         {
             config = GetConfiguration();
             config.Save(true);
@@ -52,15 +42,16 @@ namespace RainbowLasers
         }
 
         [HarmonyPatch(typeof(InteractionLaser))]
-        class InteractionLaserJank
+        class InteractionLaserPatch
         {
             [HarmonyPrefix]
             [HarmonyPatch("OnAwake")]
             static void Prefix(InteractionLaser __instance,
-                    FieldDrive<colorX> ____startColor,
-                    FieldDrive<colorX> ____endColor,
-                    FieldDrive<float3> ____directPoint,
-                    FieldDrive<float3> ____actualPoint)
+                               FieldDrive<colorX> ____startColor,
+                               FieldDrive<colorX> ____endColor,
+                               FieldDrive<float3> ____directPoint,
+                               FieldDrive<float3> ____actualPoint,
+                               SyncRef<InteractionHandler> ____handler)
             {
                 __instance.RunInUpdates(3, () =>
                 {
@@ -68,10 +59,36 @@ namespace RainbowLasers
                     if (__instance.Slot.ActiveUserRoot.ActiveUser != __instance.LocalUser) return;
 
                     Slot Assets = __instance.Slot.AddSlot("Assets");
-                    ValueField<colorX> ColE = Assets.AttachComponent<ValueField<colorX>>(); //End
-                    ValueField<colorX> ColS = Assets.AttachComponent<ValueField<colorX>>(); //Start
+
+                    DynamicValueVariable<colorX> ColS = Assets.AttachComponent<DynamicValueVariable<colorX>>(); // Start
+                    DynamicValueVariable<colorX> ColE = Assets.AttachComponent<DynamicValueVariable<colorX>>(); // End
+
+                    DynamicValueVariableDriver<colorX> StartColor = Assets.AttachComponent<DynamicValueVariableDriver<colorX>>();
+                    DynamicValueVariableDriver<colorX> EndColor = Assets.AttachComponent<DynamicValueVariableDriver<colorX>>();
+
+                    SmoothValue<colorX> ColSS = Assets.AttachComponent<SmoothValue<colorX>>();
+                    SmoothValue<colorX> ColES = Assets.AttachComponent<SmoothValue<colorX>>();
+
+                    bool side = ____handler.Target.Side.Value == Chirality.Right;
+                    StartColor.VariableName.Value = $"User/Laser_{(side ? "R" : "L")}_Start";
+                    EndColor.VariableName.Value = $"User/Laser_{(side ? "R" : "L")}_End";
+                    ColS.VariableName.Value = $"User/InteractionLaser_{(side ? "R" : "L")}_Start";
+                    ColE.VariableName.Value = $"User/InteractionLaser_{(side ? "R" : "L")}_End";
+
                     BentTubeMesh Mesh = Assets.AttachComponent<BentTubeMesh>();
                     AssetRef<Mesh> Renderer = __instance.Slot.GetComponent<MeshRenderer>().Mesh;
+
+                    StartColor.Target.Value = ColSS.TargetValue.ReferenceID;
+                    EndColor.Target.Value = ColES.TargetValue.ReferenceID;
+
+                    ColSS.Value.Value = Mesh.StartPointColor.ReferenceID;
+                    ColES.Value.Value = Mesh.EndPointColor.ReferenceID;
+
+                    ColSS.Speed.Value = config.GetValue(SMOOTH);
+                    ColES.Speed.Value = config.GetValue(SMOOTH);
+
+                    StartColor.DefaultValue.Value = config.GetValue(START);
+                    EndColor.DefaultValue.Value = config.GetValue(END);
 
                     Renderer.Target = Mesh;
                     Mesh.Radius.Value = 0.002f;
@@ -84,100 +101,9 @@ namespace RainbowLasers
                     ____directPoint.ForceLink(Mesh.DirectTargetPoint);
                     ____actualPoint.ForceLink(Mesh.ActualTargetPoint);
 
-                    bool IsRight = __instance.Side == Renderite.Shared.Chirality.Right;
-
-                    Mesh.StartPointColor.Value = new colorX(.25f, 1f, 1f, 1f);
-                    Mesh.EndPointColor.Value = new colorX(.25f, 1f, 1f, 1f);
-
-                    ValueField<colorX> Start = SetUpLogix(Assets, ColS.Value, Mesh.StartPointColor, true, IsRight);
-                    ValueField<colorX> End = SetUpLogix(Assets, ColE.Value, Mesh.EndPointColor, false, IsRight);
-                    // ____startColor / BASE_COLOR * DesiredSource 
-
-
                     __instance.Enabled = true;
                 });
             }
-
         }
-
-        private static ValueField<colorX> SetUpLogix(Slot root,
-                IField<colorX> Input,
-                Sync<colorX> Field,
-                bool IsStart,
-                bool IsRight)
-        {
-            Slot driver = root.AddSlot(IsStart ? "Start" : "End");
-            // Field <= (Input / Default) * Desired
-            ValueSource<colorX> InputSource = driver.AttachComponent<ValueSource<colorX>>();
-            InputSource.TrySetRootSource(Input);
-
-            ValueField<colorX> Default = driver.AttachComponent<ValueField<colorX>>();       //Static Default Value 
-            float colRemap = 1 - (config.GetValue(GLOW) * .99f);
-            colorX BASE_COLOR = new colorX(colRemap, colRemap, colRemap, 1f);
-            Default.Value.Value = BASE_COLOR;
-            ValueSource<colorX> DefaultSource = driver.AttachComponent<ValueSource<colorX>>();
-            DefaultSource.TrySetRootSource(Default.Value);
-
-            ValueField<colorX> DesiredField = driver.AttachComponent<ValueField<colorX>>(); //target
-            DesiredField.Value.Value = new colorX(1f, 1f, 1f, 1f);
-            ValueSource<colorX> DesiredSource = driver.AttachComponent<ValueSource<colorX>>();
-            DesiredSource.TrySetRootSource(DesiredField.Value);
-
-
-            WorldTimeTenthFloat time = driver.AttachComponent<WorldTimeTenthFloat>();
-            ValueField<float> timeSpeed = driver.AttachComponent<ValueField<float>>();
-            timeSpeed.Value.Value = config.GetValue(SPEED);
-            ValueSource<float> timeSpeedSource = driver.AttachComponent<ValueSource<float>>();
-            timeSpeedSource.TrySetRootSource(timeSpeed.Value);
-            ValueMul<float> timeMul = driver.AttachComponent<ValueMul<float>>();
-            timeMul.A.TrySet(time);
-            timeMul.B.TrySet(timeSpeedSource);
-            ColorXHue mid = driver.AttachComponent<ColorXHue>();
-            //TODO ValueMul for adjustable rgb speed
-            if (IsStart)
-            {
-                ValueField<float> offsetField = driver.AttachComponent<ValueField<float>>();
-                if (IsRight)
-                {
-                    offsetField.Value.Value = -config.GetValue(OFFSET);
-                }
-                else
-                {
-                    offsetField.Value.Value = config.GetValue(OFFSET);
-                }
-                ValueSource<float> offsetSource = driver.AttachComponent<ValueSource<float>>();
-                offsetSource.TrySetRootSource(offsetField.Value);
-
-                ValueAdd<float> colDiv = driver.AttachComponent<ValueAdd<float>>();
-                colDiv.A.TrySet(timeMul);
-                colDiv.B.TrySet(offsetSource);
-
-                mid.Hue.TrySet(colDiv);
-            }
-            else
-            {
-                mid.Hue.TrySet(timeMul);
-            }
-            ValueFieldDrive<colorX> hueFieldDrive = driver.AttachComponent<ValueFieldDrive<colorX>>();
-            hueFieldDrive.Value.TrySet(mid);
-            hueFieldDrive.TrySetRootTarget(DesiredField.Value);
-
-            ValueDiv<colorX> Div = driver.AttachComponent<ValueDiv<colorX>>();
-            ValueMul<colorX> Mul = driver.AttachComponent<ValueMul<colorX>>();
-
-            Div.A.TrySet(InputSource);
-            Div.B.TrySet(DefaultSource);
-
-            Mul.A.TrySet(Div);
-            Mul.B.TrySet(DesiredSource);
-
-            ValueFieldDrive<colorX> Driver = driver.AttachComponent<ValueFieldDrive<colorX>>();
-            Driver.Value.TrySet(Mul);
-            Driver.TrySetRootTarget(Field);
-
-            return DesiredField;
-        }
-
-
     }
 }
