@@ -17,7 +17,7 @@ namespace RainbowLasers
         public override string Name => "BiLasers";
         public override string Author => "Nexis";
         public override string Link => "https://github.com/l79627550-dot/BiLasers";
-        public override string Version => "1.0.0";
+        public override string Version => "1.1.0";
 
         public static ModConfiguration config;
 
@@ -33,12 +33,49 @@ namespace RainbowLasers
         [AutoRegisterConfigKey]
         private static readonly ModConfigurationKey<colorX> END = new ModConfigurationKey<colorX>("End Color", "End Color", () => new colorX(0f, 0.22f, 0.66f, 1f));
 
+        struct LaserData
+        {
+            public InteractionLaser laser;
+            public IAssetProvider<Mesh> originalMesh;
+            public IAssetProvider<Mesh> newMesh;
+            public SmoothValue<colorX> startSmooth;
+            public SmoothValue<colorX> endSmooth;
+            public bool IsNew;
+        }
+
+        static List<LaserData> lasers;
+
         public override void OnEngineInit()
         {
             config = GetConfiguration();
+
+            config.OnThisConfigurationChanged += OnConfigChange;
+
             config.Save(true);
             Harmony harmony = new Harmony("com.zahndy.RainbowLasers");
             harmony.PatchAll();
+        }
+
+        private void OnConfigChange(ConfigurationChangedEvent configurationChangedEvent)
+        {
+            bool isEnabled = config.GetValue(ENABLED);
+            float speed = config.GetValue(SMOOTH);
+            for (int i = 0; i < lasers.Count; i++)
+            {
+                LaserData thisLaser = lasers[i];
+
+                if (thisLaser.laser.IsDestroyed || thisLaser.laser == null)
+                {   
+                    lasers.RemoveAt(i);
+                    i--;
+                }
+
+                thisLaser.startSmooth.Speed.Value = speed;
+                thisLaser.endSmooth.Speed.Value = speed;
+
+                AssetRef<Mesh> Renderer = thisLaser.laser.Slot.GetComponent<MeshRenderer>().Mesh;
+                Renderer.Target = isEnabled ? thisLaser.newMesh : thisLaser.originalMesh;
+            }
         }
 
         [HarmonyPatch(typeof(InteractionLaser))]
@@ -55,10 +92,21 @@ namespace RainbowLasers
             {
                 __instance.RunInUpdates(3, () =>
                 {
-                    if (!config.GetValue(ENABLED)) return;
+                    // Always create variables, but dont assign if not enabled
+                    bool isEnabled = config.GetValue(ENABLED);
                     if (__instance.Slot.ActiveUserRoot.ActiveUser != __instance.LocalUser) return;
 
                     Slot Assets = __instance.Slot.AddSlot("Assets");
+
+                    LaserData thisLaser = new LaserData();
+                    thisLaser.laser = __instance;
+                    thisLaser.IsNew = isEnabled;
+
+                    ValueMultiDriver<colorX> startColors = Assets.AttachComponent<ValueMultiDriver<colorX>>();
+                    ValueMultiDriver<colorX> endColors = Assets.AttachComponent<ValueMultiDriver<colorX>>();
+
+                    ValueMultiDriver<float3> directTargetPoint = Assets.AttachComponent<ValueMultiDriver<float3>>();
+                    ValueMultiDriver<float3> actualTargetPoint = Assets.AttachComponent<ValueMultiDriver<float3>>();
 
                     DynamicValueVariable<colorX> ColS = Assets.AttachComponent<DynamicValueVariable<colorX>>(); // Start
                     DynamicValueVariable<colorX> ColE = Assets.AttachComponent<DynamicValueVariable<colorX>>(); // End
@@ -68,6 +116,8 @@ namespace RainbowLasers
 
                     SmoothValue<colorX> ColSS = Assets.AttachComponent<SmoothValue<colorX>>();
                     SmoothValue<colorX> ColES = Assets.AttachComponent<SmoothValue<colorX>>();
+                    thisLaser.startSmooth = ColSS;
+                    thisLaser.endSmooth = ColES;
 
                     bool side = ____handler.Target.Side.Value == Chirality.Right;
                     StartColor.VariableName.Value = $"User/Laser_{(side ? "R" : "L")}_Start";
@@ -77,6 +127,10 @@ namespace RainbowLasers
 
                     BentTubeMesh Mesh = Assets.AttachComponent<BentTubeMesh>();
                     AssetRef<Mesh> Renderer = __instance.Slot.GetComponent<MeshRenderer>().Mesh;
+                    BentTubeMesh OriginalMesh = __instance.Slot.GetComponent<BentTubeMesh>();
+
+                    thisLaser.originalMesh = Renderer.Target;
+                    thisLaser.newMesh = Mesh;
 
                     StartColor.Target.Value = ColSS.TargetValue.ReferenceID;
                     EndColor.Target.Value = ColES.TargetValue.ReferenceID;
@@ -90,18 +144,38 @@ namespace RainbowLasers
                     StartColor.DefaultValue.Value = config.GetValue(START);
                     EndColor.DefaultValue.Value = config.GetValue(END);
 
-                    Renderer.Target = Mesh;
+                    if (isEnabled) Renderer.Target = Mesh;
                     Mesh.Radius.Value = 0.002f;
                     Mesh.Sides.Value = 6;
                     Mesh.Segments.Value = 16;
 
-                    ____startColor.Value = ColS.Value.ReferenceID;
-                    ____endColor.Value = ColE.Value.ReferenceID;
+                    startColors.Drives.Add();
+                    startColors.Drives.Add();
+                    startColors.Drives[0].ForceLink(OriginalMesh.StartPointColor);
+                    startColors.Drives[1].ForceLink(ColS.Value);
+                    endColors.Drives.Add();
+                    endColors.Drives.Add();
+                    endColors.Drives[0].ForceLink(OriginalMesh.EndPointColor);
+                    endColors.Drives[1].ForceLink(ColE.Value);
+                    
+                    ____startColor.Value = startColors.Value.ReferenceID;
+                    ____endColor.Value = endColors.Value.ReferenceID;
 
-                    ____directPoint.ForceLink(Mesh.DirectTargetPoint);
-                    ____actualPoint.ForceLink(Mesh.ActualTargetPoint);
+                    directTargetPoint.Drives.Add();
+                    directTargetPoint.Drives.Add();
+                    directTargetPoint.Drives[0].ForceLink(OriginalMesh.DirectTargetPoint);
+                    directTargetPoint.Drives[1].ForceLink(Mesh.DirectTargetPoint);
+                    actualTargetPoint.Drives.Add();
+                    actualTargetPoint.Drives.Add();
+                    actualTargetPoint.Drives[0].ForceLink(OriginalMesh.ActualTargetPoint);
+                    actualTargetPoint.Drives[1].ForceLink(Mesh.ActualTargetPoint);
+
+                    ____directPoint.ForceLink(directTargetPoint.Value);
+                    ____actualPoint.ForceLink(actualTargetPoint.Value);
 
                     __instance.Enabled = true;
+
+                    lasers.Add(thisLaser);
                 });
             }
         }
