@@ -225,22 +225,11 @@ namespace BiLasers
 
         #region Data Stuff
 
-        #region Config Getter functions
-
-        static T GetDefault<T>(ModConfigurationKey<T> key, T defaultValue)
-        {
-            key.TryComputeDefault(out object? value);
-            if (value == null) return defaultValue;
-            return (T)value;
-        }
-
         static T GetConfigValue<T>(ModConfigurationKey<T> key, T defaultValue)
         {
             if (config != null) return config.GetValue(key) ?? defaultValue;
-            return GetDefault(key, defaultValue);
+            return defaultValue;
         }
-
-        #endregion
 
         struct LaserData
         {
