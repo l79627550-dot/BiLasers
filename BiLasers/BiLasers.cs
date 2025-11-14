@@ -10,7 +10,7 @@ using FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes.Operators;
 using FrooxEngine.FrooxEngine.ProtoFlux.CoreNodes;
 using FrooxEngine.ProtoFlux.Runtimes.Execution.Nodes.Color;
 
-namespace RainbowLasers
+namespace BiLasers
 {
     public class Patch : ResoniteMod
     {
@@ -52,7 +52,7 @@ namespace RainbowLasers
                 config.OnThisConfigurationChanged += OnConfigChange;
                 config.Save(true);
             }
-            Harmony harmony = new Harmony("com.nexis.BiLasers");
+            Harmony harmony = new Harmony("com.Nexis.BiLasers");
             harmony.PatchAll();
         }
 
