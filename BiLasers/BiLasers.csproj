@@ -21,7 +21,7 @@
 
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>$(GamePath)Resonite\rml_libs\0Harmony.dll</HintPath>
+      <HintPath>$(GamePath)rml_libs\0Harmony.dll</HintPath>
     </Reference>
     <Reference Include="Elements.Core">
       <HintPath>$(GamePath)Elements.Core.dll</HintPath>
