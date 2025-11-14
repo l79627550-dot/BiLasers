@@ -109,14 +109,17 @@ namespace BiLasers
                     continue;
                 }
 
-                thisLaser.startSmooth.Speed.Value = SmoothSpeed;
-                thisLaser.endSmooth.Speed.Value = SmoothSpeed;
+                thisLaser.laser.RunInUpdates(3, () =>
+                {
+                    thisLaser.startSmooth.Speed.Value = SmoothSpeed;
+                    thisLaser.endSmooth.Speed.Value = SmoothSpeed;
 
-                thisLaser.newStartColor.Value = StartColor;
-                thisLaser.newEndColor.Value = EndColor;
+                    thisLaser.newStartColor.Value = StartColor;
+                    thisLaser.newEndColor.Value = EndColor;
 
-                AssetRef<Mesh> Renderer = thisLaser.laser.Slot.GetComponent<MeshRenderer>().Mesh;
-                Renderer.Target = Enabled ? thisLaser.newMesh : thisLaser.originalMesh;
+                    AssetRef<Mesh> Renderer = thisLaser.laser.Slot.GetComponent<MeshRenderer>().Mesh;
+                    Renderer.Target = Enabled ? thisLaser.newMesh : thisLaser.originalMesh;
+                });
             }
         }
 
