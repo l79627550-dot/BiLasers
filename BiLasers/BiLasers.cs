@@ -19,6 +19,15 @@ namespace BiLasers
         public override string Link => "https://github.com/l79627550-dot/BiLasers";
         public override string Version => "1.1.0";
 
+        #region Mod Config Keys
+
+        // Defaults
+        static readonly bool DefaultEnabled = true;
+        static readonly float DefaultSmoothSpeed = 10;
+        static readonly colorX DefaultStartColor = new colorX(0.84f, 0.01f, 0.44f, 1f);
+        static readonly colorX DefaultEndColor = new colorX(0f, 0.22f, 0.66f, 1f);
+
+        // Config objects
         public static ModConfiguration? config;
 
         [AutoRegisterConfigKey]
@@ -33,13 +42,16 @@ namespace BiLasers
         [AutoRegisterConfigKey]
         private static readonly ModConfigurationKey<colorX> END = new ModConfigurationKey<colorX>("End Color", "End Color", () => DefaultEndColor);
 
-        // Defaults
-        static readonly bool DefaultEnabled = true;
-        static readonly float DefaultSmoothSpeed = 10;
-        static readonly colorX DefaultStartColor = new colorX(0.84f, 0.01f, 0.44f, 1f);
-        static readonly colorX DefaultEndColor = new colorX(0f, 0.22f, 0.66f, 1f);
 
-        // Dynamic Variable Names. {0}=L/R, {1}=Start/End
+        // Variable references. replaces config.GetValue([key]), is never null
+        static bool Enabled => GetConfigValue(ENABLED, DefaultEnabled);
+        static float SmoothSpeed => GetConfigValue(SMOOTH, DefaultSmoothSpeed);
+        static colorX StartColor => GetConfigValue(START, DefaultStartColor);
+        static colorX EndColor => GetConfigValue(END, DefaultEndColor);
+
+        #endregion
+
+        // Dynamic Variable Names. {0}='L'/'R', {1}='Start'/'End'
         static readonly string BaseColorVariable = "User/InteractionLaser_{0}_{1}";
         static readonly string NewColorVariable = "User/Laser_{0}_{1}";
 
@@ -55,60 +67,22 @@ namespace BiLasers
             Harmony harmony = new Harmony("com.Nexis.BiLasers");
             harmony.PatchAll();
         }
-
-        // Quick way to get the config values, with proper nullchecks
-        #region Config Value Getters
-        static bool Enabled => GetConfigValue(ENABLED, DefaultEnabled);
-        static float SmoothSpeed => GetConfigValue(SMOOTH, DefaultSmoothSpeed);
-        static colorX StartColor => GetConfigValue(START, DefaultStartColor);
-        static colorX EndColor => GetConfigValue(END, DefaultEndColor);
-
-        static T GetDefault<T>(ModConfigurationKey<T> key, T defaultValue)
-        {
-            key.TryComputeDefault(out object? value);
-            if (value == null) return defaultValue;
-            return (T)value;
-        }
-
-        static T GetConfigValue<T>(ModConfigurationKey<T> key, T defaultValue)
-        {
-            if (config != null) return config.GetValue(key) ?? defaultValue;
-            return GetDefault(key, defaultValue);
-        }
-
-        #endregion
-
-        struct LaserData
-        {
-            public InteractionLaser laser;
-
-            public IAssetProvider<Mesh> originalMesh;
-            public IAssetProvider<Mesh> newMesh;
-
-            public SmoothValue<colorX> startSmooth;
-            public SmoothValue<colorX> endSmooth;
-
-            public Sync<colorX> newStartColor;
-            public Sync<colorX> newEndColor;
-        }
-
-        static List<LaserData> lasers = [];
-
         static void OnConfigChange(ConfigurationChangedEvent configurationChangedEvent)
         {
-
-            for (int i = 0; i < lasers.Count; i++)
+            for (int i = 0; i < currentLasers.Count; i++)
             {
-                LaserData thisLaser = lasers[i];
+                LaserData thisLaser = currentLasers[i];
 
                 // If the component is gone, by nulling, disposing or destroying
                 if (thisLaser.laser == null || thisLaser.laser.IsRemoved)
                 {
-                    lasers.RemoveAt(i);
+                    // This laser no longer exists, therefore remove from the list and skip to the next element
+                    currentLasers.RemoveAt(i);
                     i--;
                     continue;
                 }
 
+                // For some reason this is required, otherwise the function crashes when trying to set the values
                 thisLaser.laser.RunInUpdates(3, () =>
                 {
                     thisLaser.startSmooth.Speed.Value = SmoothSpeed;
@@ -117,8 +91,7 @@ namespace BiLasers
                     thisLaser.newStartColor.Value = StartColor;
                     thisLaser.newEndColor.Value = EndColor;
 
-                    AssetRef<Mesh> Renderer = thisLaser.laser.Slot.GetComponent<MeshRenderer>().Mesh;
-                    Renderer.Target = Enabled ? thisLaser.newMesh : thisLaser.originalMesh;
+                    thisLaser.laserMesh.Target = Enabled ? thisLaser.newMesh : thisLaser.originalMesh;
                 });
             }
         }
@@ -137,9 +110,7 @@ namespace BiLasers
             {
                 __instance.RunInUpdates(3, () =>
                 {
-                    // Always create variables, but dont change mesh if not enabled
                     if (__instance.Slot.ActiveUserRoot.ActiveUser != __instance.LocalUser) return;
-
 
                     Slot Assets = __instance.Slot.AddSlot("Laser Assets");
 
@@ -229,6 +200,7 @@ namespace BiLasers
                     LaserData thisLaser = new()
                     {
                         laser = __instance,
+                        laserMesh = Renderer,
 
                         originalMesh = OriginalMesh,
                         newMesh = NewMesh,
@@ -240,7 +212,7 @@ namespace BiLasers
                         newEndColor = newEndColor.DefaultValue
                     };
 
-                    lasers.Add(thisLaser);
+                    currentLasers.Add(thisLaser);
 
                     #endregion
 
@@ -250,5 +222,44 @@ namespace BiLasers
                 });
             }
         }
+
+        #region Data Stuff
+
+        #region Config Getter functions
+
+        static T GetDefault<T>(ModConfigurationKey<T> key, T defaultValue)
+        {
+            key.TryComputeDefault(out object? value);
+            if (value == null) return defaultValue;
+            return (T)value;
+        }
+
+        static T GetConfigValue<T>(ModConfigurationKey<T> key, T defaultValue)
+        {
+            if (config != null) return config.GetValue(key) ?? defaultValue;
+            return GetDefault(key, defaultValue);
+        }
+
+        #endregion
+
+        struct LaserData
+        {
+            public InteractionLaser laser;
+
+            public AssetRef<Mesh> laserMesh;
+
+            public IAssetProvider<Mesh> originalMesh;
+            public IAssetProvider<Mesh> newMesh;
+
+            public SmoothValue<colorX> startSmooth;
+            public SmoothValue<colorX> endSmooth;
+
+            public Sync<colorX> newStartColor;
+            public Sync<colorX> newEndColor;
+        }
+
+        static List<LaserData> currentLasers = [];
+
+        #endregion
     }
 }
