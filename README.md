@@ -1,6 +1,6 @@
 # BiLasers
-
 A [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader) mod for [Resonite](https://resonite.com/) that Adds bisexual lasers<br>
+> This fork only exists for editing the 'original' version by Nexis. Will probably remove this repo once this is finished
 
 ## Installation
 1. Install [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader).
