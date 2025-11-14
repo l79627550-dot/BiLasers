@@ -105,8 +105,7 @@ namespace BiLasers
                                FieldDrive<colorX> ____startColor,
                                FieldDrive<colorX> ____endColor,
                                FieldDrive<float3> ____directPoint,
-                               FieldDrive<float3> ____actualPoint,
-                               SyncRef<InteractionHandler> ____handler)
+                               FieldDrive<float3> ____actualPoint)
             {
                 __instance.RunInUpdates(3, () =>
                 {
@@ -114,8 +113,8 @@ namespace BiLasers
 
                     Slot Assets = __instance.Slot.AddSlot("Laser Assets");
 
-                    bool side = ____handler.Target.Side.Value == Chirality.Right;
-                    string sideAsLR = side ? "R" : "L";
+                    bool isRight = __instance.Side == Chirality.Right;
+                    string sideAsLR = isRight ? "R" : "L";
 
                     #region Components
 
